@@ -61,5 +61,10 @@ date in the tooltip.
 
 ---
 
+## Future Improvements
+
+- Add export or print function to save completed calendars
+- Add social buttons to send to social media
+- Add additional visualizationt types
 *Part of the AppADay project — one complete web application shipped every day.*  
 *[← Back to Portfolio](../index.html)*
