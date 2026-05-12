@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>006 · Life Calendar</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Cormorant+SC:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0e12;
+      --surface: #13151c;
+      --border: #1e2130;
+      --lived: #c8a96e;
+      --lived-glow: rgba(200,169,110,0.15);
+      --future: #1a1d28;
+      --future-border: #22263a;
+      --text-primary: #e8dfc8;
+      --text-muted: #6b6a5e;
+      --text-dim: #2e3040;
+      --accent: #c8a96e;
+      --red: #9b4444;
+      --event-color: #5b8fa8;
+    }
+
+    html, body { min-height: 100%; background: var(--bg); color: var(--text-primary); font-family: 'Cormorant Garamond', Georgia, serif; }
+
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(200,169,110,0.04) 0%, transparent 65%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .site-header {
+      position: relative; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+      background: rgba(13,14,18,0.92); backdrop-filter: blur(8px);
+    }
+    .site-header .app-id { font-family:'Cormorant SC',serif; font-size:11px; letter-spacing:.18em; color:var(--text-muted); }
+    .site-header a { font-family:'Cormorant SC',serif; font-size:11px; letter-spacing:.14em; color:var(--accent); text-decoration:none; opacity:.7; transition:opacity .2s; }
+    .site-header a:hover { opacity:1; }
+
+    #input-screen {
+      position: relative; z-index: 5; min-height: calc(100vh - 49px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 40px 20px; text-align: center;
+    }
+    .eyebrow { font-family:'Cormorant SC',serif; font-size:10px; letter-spacing:.28em; color:var(--text-muted); margin-bottom:18px; }
+    .main-title { font-size:clamp(42px,8vw,72px); font-weight:300; font-style:italic; line-height:1.05; margin-bottom:12px; }
+    .subtitle { font-size:15px; font-weight:300; color:var(--text-muted); max-width:360px; line-height:1.7; margin-bottom:48px; }
+    .input-group { display:flex; flex-direction:column; align-items:center; gap:12px; width:100%; max-width:320px; }
+    .input-label { font-family:'Cormorant SC',serif; font-size:10px; letter-spacing:.22em; color:var(--text-muted); align-self:flex-start; }
+
+    input[type="date"], input[type="text"] {
+      width:100%; background:var(--surface); border:1px solid var(--border); border-radius:3px;
+      padding:14px 16px; font-family:'Cormorant Garamond',serif; font-size:17px;
+      color:var(--text-primary); outline:none; transition:border-color .25s; color-scheme:dark;
+    }
+    input[type="date"]:focus, input[type="text"]:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--lived-glow); }
+
+    .life-expectancy-row { display:flex; align-items:center; justify-content:space-between; width:100%; gap:10px; }
+    .life-expectancy-row label { font-family:'Cormorant SC',serif; font-size:10px; letter-spacing:.18em; color:var(--text-muted); white-space:nowrap; }
+    .life-expectancy-row input[type="number"] {
+      width:80px; background:var(--surface); border:1px solid var(--border); border-radius:3px;
+      padding:10px 12px; font-family:'Cormorant Garamond',serif; font-size:17px;
+      color:var(--text-primary); text-align:center; outline:none; transition:border-color .25s; -moz-appearance:textfield;
+    }
+    .life-expectancy-row input[type="number"]::-webkit-inner-spin-button,
+    .life-expectancy-row input[type="number"]::-webkit-outer-spin-button { -webkit-appearance:none; }
+    .life-expectancy-row input[type="number"]:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--lived-glow); }
+
+    .build-btn {
+      margin-top:8px; width:100%; padding:15px; background:transparent;
+      border:1px solid var(--accent); border-radius:3px; font-family:'Cormorant SC',serif;
+      font-size:13px; letter-spacing:.22em; color:var(--accent); cursor:pointer; transition:background .2s, color .2s;
+    }
+    .build-btn:hover { background:var(--accent); color:var(--bg); }
+    .memento { margin-top:56px; font-style:italic; font-size:13px; color:var(--text-dim); letter-spacing:.06em; }
+
+    #calendar-screen { display:none; position:relative; z-index:5; padding:20px 12px 60px; }
+
+    .stats-bar {
+      display:flex; justify-content:center; flex-wrap:wrap;
+      max-width:860px; margin:0 auto 18px; border:1px solid var(--border); border-radius:4px; overflow:hidden;
+    }
+    .stat { flex:1; min-width:90px; padding:12px 14px; text-align:center; border-right:1px solid var(--border); }
+    .stat:last-child { border-right:none; }
+    .stat-val { font-size:24px; font-weight:300; color:var(--text-primary); line-height:1; margin-bottom:3px; }
+    .stat-val.gold { color:var(--accent); }
+    .stat-lbl { font-family:'Cormorant SC',serif; font-size:9px; letter-spacing:.2em; color:var(--text-muted); }
+
+    .view-tabs {
+      display:flex; justify-content:center;
+      max-width:860px; margin:0 auto 18px;
+      border:1px solid var(--border); border-radius:4px; overflow:hidden;
+    }
+    .tab-btn {
+      flex:1; padding:10px 8px; background:transparent; border:none; border-right:1px solid var(--border);
+      font-family:'Cormorant SC',serif; font-size:10px; letter-spacing:.18em; color:var(--text-muted);
+      cursor:pointer; transition:background .2s, color .2s;
+    }
+    .tab-btn:last-child { border-right:none; }
+    .tab-btn:hover { background:var(--surface); color:var(--text-primary); }
+    .tab-btn.active { background:var(--surface); color:var(--accent); }
+
+    .events-section {
+      max-width:860px; margin:0 auto 20px;
+      border:1px solid var(--border); border-radius:4px; overflow:hidden;
+    }
+    .events-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 16px; background:var(--surface); cursor:pointer; border-bottom:1px solid transparent;
+      transition: border-color .2s;
+    }
+    .events-header.open { border-bottom-color: var(--border); }
+    .events-header-label { font-family:'Cormorant SC',serif; font-size:10px; letter-spacing:.2em; color:var(--text-muted); transition:color .2s; }
+    .events-header:hover .events-header-label { color:var(--text-primary); }
+    .events-toggle { font-size:11px; color:var(--text-muted); transition:transform .25s; }
+    .events-toggle.open { transform:rotate(180deg); }
+    .events-body { display:none; padding:14px 16px; }
+    .events-body.open { display:block; }
+
+    .event-list { margin-bottom:12px; display:flex; flex-direction:column; gap:6px; }
+    .event-row {
+      display:flex; align-items:center; gap:10px;
+      padding:8px 10px; background:var(--bg); border:1px solid var(--border); border-radius:3px;
+    }
+    .event-dot { width:8px; height:8px; border-radius:50%; background:var(--event-color); flex-shrink:0; }
+    .event-info { flex:1; }
+    .event-name { font-size:14px; color:var(--text-primary); line-height:1.2; }
+    .event-date-lbl { font-family:'Cormorant SC',serif; font-size:9px; letter-spacing:.15em; color:var(--text-muted); margin-top:2px; }
+    .event-remove { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:18px; line-height:1; padding:0 4px; transition:color .2s; }
+    .event-remove:hover { color:var(--red); }
+
+    .add-event-form { display:flex; gap:8px; flex-wrap:wrap; }
+    .add-event-form input[type="text"] { flex:1; min-width:120px; padding:9px 12px; font-size:15px; }
+    .add-event-form input[type="date"] { flex:1; min-width:140px; padding:9px 12px; font-size:15px; }
+    .add-event-btn {
+      padding:9px 16px; background:transparent; border:1px solid var(--border); border-radius:3px;
+      font-family:'Cormorant SC',serif; font-size:10px; letter-spacing:.18em; color:var(--text-muted);
+      cursor:pointer; white-space:nowrap; transition:border-color .2s, color .2s;
+    }
+    .add-event-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+    /* WEEK GRID */
+    #view-weeks { display:block; }
+    .year-section { max-width:960px; margin:0 auto 6px; }
+    .year-label { font-family:'Cormorant SC',serif; font-size:9px; letter-spacing:.2em; color:var(--text-dim); margin-bottom:3px; padding-left:2px; }
+    .weeks-row { display:flex; flex-wrap:nowrap; gap:2px; }
+    .week { width:12px; height:12px; border-radius:2px; flex-shrink:0; transition:transform .1s; position:relative; cursor:default; }
+    .week:hover { transform:scale(1.5); z-index:10; }
+    .week.lived { background:var(--lived); box-shadow:0 0 3px rgba(200,169,110,.2); }
+    .week.current { background:var(--red); box-shadow:0 0 6px rgba(155,68,68,.5); animation:pulse 2s ease-in-out infinite; }
+    .week.future { background:var(--future); border:1px solid var(--future-border); }
+    .week.has-event { outline:2px solid var(--event-color); outline-offset:1px; z-index:2; }
+    .week.has-event:hover::after {
+      content:attr(data-events); position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+      background:#1a2030; border:1px solid var(--event-color); border-radius:3px;
+      padding:5px 9px; font-family:'Cormorant Garamond',serif; font-size:12px; color:var(--text-primary);
+      white-space:nowrap; z-index:100; pointer-events:none;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity:1; box-shadow:0 0 6px rgba(155,68,68,.5); }
+      50% { opacity:.75; box-shadow:0 0 14px rgba(155,68,68,.8); }
+    }
+
+    /* YEAR ARCS */
+    #view-arcs { display:none; }
+    .arcs-container { max-width:900px; margin:0 auto; }
+    .arcs-intro { text-align:center; font-style:italic; font-size:14px; color:var(--text-muted); margin-bottom:16px; }
+    #arcs-svg { width:100%; display:block; }
+
+    .legend {
+      display:flex; align-items:center; justify-content:center; gap:20px;
+      max-width:860px; margin:20px auto 0; flex-wrap:wrap;
+    }
+    .legend-item { display:flex; align-items:center; gap:7px; font-family:'Cormorant SC',serif; font-size:10px; letter-spacing:.16em; color:var(--text-muted); }
+    .legend-dot { width:11px; height:11px; border-radius:2px; }
+    .legend-dot.lived { background:var(--lived); }
+    .legend-dot.current { background:var(--red); }
+    .legend-dot.future { background:var(--future); border:1px solid var(--future-border); }
+    .legend-dot.event { background:var(--event-color); border-radius:50%; }
+
+    .bottom-actions { display:flex; justify-content:center; gap:12px; margin-top:32px; flex-wrap:wrap; }
+    .reset-btn {
+      padding:10px 28px; background:transparent; border:1px solid var(--border); border-radius:3px;
+      font-family:'Cormorant SC',serif; font-size:11px; letter-spacing:.2em; color:var(--text-muted);
+      cursor:pointer; transition:border-color .2s, color .2s;
+    }
+    .reset-btn:hover { border-color:var(--text-muted); color:var(--text-primary); }
+
+    @media (max-width:600px) {
+      .week { width:7px; height:7px; border-radius:1px; }
+      .weeks-row { gap:1px; }
+      .year-section { margin-bottom:4px; }
+
+    }
+
+    .fade-in { animation:fadeIn .5s ease forwards; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <span class="app-id">006 · Life Calendar</span>
+  <a href="../index.html">← Portfolio</a>
+</header>
+
+<section id="input-screen">
+  <p class="eyebrow">AppADay · 006</p>
+  <h1 class="main-title">Life Calendar</h1>
+  <p class="subtitle">Every week of your life rendered as a single mark. Enter your birthdate to begin.</p>
+  <div class="input-group">
+    <label class="input-label" for="birthdate">Date of Birth</label>
+    <input type="date" id="birthdate" />
+    <div class="life-expectancy-row">
+      <label for="life-years">Life expectancy (years)</label>
+      <input type="number" id="life-years" value="80" min="1" max="120" />
+    </div>
+    <button class="build-btn" onclick="buildCalendar()">Render My Life</button>
+  </div>
+  <p class="memento">Memento mori. This too shall pass.</p>
+</section>
+
+<section id="calendar-screen">
+  <div class="stats-bar" id="stats-bar"></div>
+
+  <div class="view-tabs">
+    <button class="tab-btn active" onclick="switchView('weeks',this)">Week Grid</button>
+    <button class="tab-btn" onclick="switchView('arcs',this)">Year Arcs</button>
+  </div>
+
+  <div class="events-section">
+    <div class="events-header" id="events-header" onclick="toggleEvents()">
+      <span class="events-header-label">Life Events <span id="events-count" style="color:var(--accent);margin-left:6px;"></span></span>
+      <span class="events-toggle" id="events-toggle">▼</span>
+    </div>
+    <div class="events-body" id="events-body">
+      <div class="event-list" id="event-list"></div>
+      <div class="add-event-form">
+        <input type="text" id="new-event-name" placeholder="Event name…" />
+        <input type="date" id="new-event-date" />
+        <button class="add-event-btn" onclick="addEvent()">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-weeks"></div>
+  <div id="view-arcs">
+    <div class="arcs-container">
+      <p class="arcs-intro">Each ring is one year of life. The filled arc shows time lived within that year. Blue dots mark life events.</p>
+      <svg id="arcs-svg" viewBox="0 0 900 900" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot lived"></div>Weeks Lived</div>
+    <div class="legend-item"><div class="legend-dot current"></div>This Week</div>
+    <div class="legend-item"><div class="legend-dot future"></div>Weeks Ahead</div>
+    <div class="legend-item"><div class="legend-dot event"></div>Life Event</div>
+  </div>
+
+  <div class="bottom-actions">
+    <button class="reset-btn" onclick="resetCalendar()">← Change Date</button>
+  </div>
+</section>
+
+<script>
+  let state = {
+    birthdate: null, lifeYears: 80,
+    weeksLived: 0, totalWeeks: 0, currentWeek: 0,
+    ageYears: 0, ageWeeks: 0,
+    events: []
+  };
+  let activeView = 'weeks';
+
+  function parseLocalDate(str) {
+    const [y,m,d] = str.split('-').map(Number);
+    return new Date(y, m-1, d);
+  }
+
+  function weekIndexForDate(date) {
+    const ms = date - state.birthdate;
+    if (ms < 0) return -1;
+    return Math.floor(ms / (7*24*60*60*1000));
+  }
+
+  function eventsByWeek() {
+    const map = {};
+    state.events.forEach(ev => {
+      const wi = weekIndexForDate(ev.date);
+      if (wi < 0) return;
+      if (!map[wi]) map[wi] = [];
+      map[wi].push(ev.name);
+    });
+    return map;
+  }
+
+  function buildCalendar() {
+    const bdInput = document.getElementById('birthdate').value;
+    const lifeYears = parseInt(document.getElementById('life-years').value) || 80;
+    if (!bdInput) { document.getElementById('birthdate').focus(); return; }
+
+    const birthdate = parseLocalDate(bdInput);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const msPerWeek = 7*24*60*60*1000;
+    const totalWeeks = lifeYears * 52;
+    const weeksLived = Math.floor((today - birthdate) / msPerWeek);
+    const weeksRemaining = Math.max(0, totalWeeks - weeksLived - 1);
+    const percentLived = Math.min(100, (weeksLived / totalWeeks * 100)).toFixed(1);
+
+    let ageYears = today.getFullYear() - birthdate.getFullYear();
+    const hadBD = today.getMonth() > birthdate.getMonth() ||
+      (today.getMonth() === birthdate.getMonth() && today.getDate() >= birthdate.getDate());
+    if (!hadBD) ageYears--;
+    const lastBD = new Date(birthdate.getFullYear() + ageYears, birthdate.getMonth(), birthdate.getDate());
+    const ageWeeks = Math.floor((today - lastBD) / msPerWeek);
+
+    state = { ...state, birthdate, lifeYears, weeksLived, totalWeeks, currentWeek: weeksLived, weeksRemaining, percentLived, ageYears, ageWeeks };
+
+    document.getElementById('stats-bar').innerHTML = `
+      <div class="stat"><div class="stat-val gold">${weeksLived.toLocaleString()}</div><div class="stat-lbl">Weeks Lived</div></div>
+      <div class="stat"><div class="stat-val">${weeksRemaining.toLocaleString()}</div><div class="stat-lbl">Weeks Ahead</div></div>
+      <div class="stat"><div class="stat-val">${ageYears}<span style="font-size:14px;color:var(--text-muted)">yr</span> ${ageWeeks}<span style="font-size:14px;color:var(--text-muted)">wk</span></div><div class="stat-lbl">Current Age</div></div>
+      <div class="stat"><div class="stat-val">${percentLived}%</div><div class="stat-lbl">Journey Elapsed</div></div>
+    `;
+
+    document.getElementById('input-screen').style.display = 'none';
+    const cal = document.getElementById('calendar-screen');
+    cal.style.display = 'block';
+    cal.classList.add('fade-in');
+    window.scrollTo(0,0);
+    renderAll();
+  }
+
+  function renderAll() {
+    renderWeeks();
+    renderArcs();
+  }
+
+  function switchView(view, btn) {
+    activeView = view;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-weeks').style.display = view==='weeks' ? 'block' : 'none';
+    document.getElementById('view-arcs').style.display = view==='arcs' ? 'block' : 'none';
+  }
+
+  function toggleEvents() {
+    const body = document.getElementById('events-body');
+    const toggle = document.getElementById('events-toggle');
+    const header = document.getElementById('events-header');
+    const open = body.classList.toggle('open');
+    toggle.classList.toggle('open', open);
+    header.classList.toggle('open', open);
+  }
+
+  function addEvent() {
+    const nameEl = document.getElementById('new-event-name');
+    const dateEl = document.getElementById('new-event-date');
+    const name = nameEl.value.trim();
+    const dateStr = dateEl.value;
+    if (!name || !dateStr) return;
+    state.events.push({ name, date: parseLocalDate(dateStr), dateStr });
+    nameEl.value = ''; dateEl.value = '';
+    renderEventList();
+    renderAll();
+  }
+
+  function removeEvent(i) {
+    state.events.splice(i, 1);
+    renderEventList();
+    renderAll();
+  }
+
+  function renderEventList() {
+    const list = document.getElementById('event-list');
+    const countEl = document.getElementById('events-count');
+    countEl.textContent = state.events.length ? `(${state.events.length})` : '';
+    if (!state.events.length) {
+      list.innerHTML = '<div style="font-size:13px;color:var(--text-muted);font-style:italic;padding:4px 0 10px;">No events added yet.</div>';
+      return;
+    }
+    const sorted = [...state.events].map((ev,i) => ({...ev, origIdx:i})).sort((a,b) => a.date-b.date);
+    list.innerHTML = sorted.map(ev => `
+      <div class="event-row">
+        <div class="event-dot"></div>
+        <div class="event-info">
+          <div class="event-name">${ev.name}</div>
+          <div class="event-date-lbl">${ev.date.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</div>
+        </div>
+        <button class="event-remove" onclick="removeEvent(${ev.origIdx})">×</button>
+      </div>
+    `).join('');
+  }
+
+  /* ── WEEK GRID ── */
+  function renderWeeks() {
+    const container = document.getElementById('view-weeks');
+    container.innerHTML = '';
+    const evMap = eventsByWeek();
+
+    for (let y = 0; y < state.lifeYears; y++) {
+      const section = document.createElement('div');
+      section.className = 'year-section';
+
+      const lbl = document.createElement('div');
+      lbl.className = 'year-label';
+      lbl.textContent = `${state.birthdate.getFullYear()+y}  ·  age ${y}`;
+      section.appendChild(lbl);
+
+      const row = document.createElement('div');
+      row.className = 'weeks-row';
+
+      const msPerWeekG = 7*24*60*60*1000;
+      const yrStartG = Math.floor((new Date(state.birthdate.getFullYear()+y,   state.birthdate.getMonth(), state.birthdate.getDate()) - state.birthdate) / msPerWeekG);
+      const yrEndG   = Math.floor((new Date(state.birthdate.getFullYear()+y+1, state.birthdate.getMonth(), state.birthdate.getDate()) - state.birthdate) / msPerWeekG);
+      for (let w = 0; w < (yrEndG - yrStartG); w++) {
+        const wi = yrStartG + w;
+        const dot = document.createElement('div');
+        dot.className = 'week';
+        if (wi < state.currentWeek) dot.classList.add('lived');
+        else if (wi === state.currentWeek) dot.classList.add('current');
+        else dot.classList.add('future');
+        const evs = evMap[wi];
+        if (evs) {
+          dot.classList.add('has-event');
+          dot.setAttribute('data-events', evs.join(', '));
+          dot.style.backgroundImage = 'linear-gradient(#5b8fa8, #5b8fa8)';
+          dot.style.boxShadow = '0 0 0 2px #a8d4f0';
+        }
+        if (evs) {
+          const evTooltip = state.events
+            .filter(ev => evs.includes(ev.name))
+            .map(ev => ev.name + ' · ' + ev.date.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}));
+          dot.title = evTooltip.join('\n');
+        } else {
+          dot.title = wi===state.currentWeek ? 'You are here' : 'Week ' + (wi+1);
+        }
+        row.appendChild(dot);
+      }
+      section.appendChild(row);
+      container.appendChild(section);
+    }
+  }
+
+  /* ── YEAR ARCS ── */
+  function renderArcs() {
+    const svg = document.getElementById('arcs-svg');
+    svg.innerHTML = '';
+    const evMap = eventsByWeek();
+    const cx = 450, cy = 450;
+    const minR = 20;
+    const maxRings = state.lifeYears;
+    const availR = cx - minR - 4;
+    const ringSize = Math.max(2, Math.min(8, Math.floor(availR / maxRings) - 1));
+    const gapSize  = Math.max(1, Math.floor(availR / maxRings) - ringSize);
+
+    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    defs.innerHTML = `<filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+    svg.appendChild(defs);
+
+    // Convert angle (0=12 o'clock, clockwise) + radius to x,y
+    function polar(angleDeg, r) {
+      const rad = (angleDeg - 90) * Math.PI / 180;
+      return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+    }
+
+    // Build an SVG arc path string from startDeg to endDeg at radius r
+    function arcPath(r, startDeg, endDeg) {
+      // Clamp span to avoid degenerate full-circle paths
+      const span = Math.min(endDeg - startDeg, 359.99);
+      const s = polar(startDeg, r);
+      const e = polar(startDeg + span, r);
+      const large = span > 180 ? 1 : 0;
+      return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`;
+    }
+
+    // Pre-compute birthday-anchored week indices
+    const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+    const birthdayWeekIndex = [];
+    for (let y = 0; y <= maxRings; y++) {
+      const bd = new Date(state.birthdate.getFullYear()+y, state.birthdate.getMonth(), state.birthdate.getDate());
+      birthdayWeekIndex[y] = Math.floor((bd - state.birthdate) / msPerWeek);
+    }
+
+    for (let y = 0; y < maxRings; y++) {
+      const r = minR + y * (ringSize + gapSize) + ringSize / 2;
+      if (r + ringSize / 2 > cx - 2) break;
+
+      const startWeek    = birthdayWeekIndex[y];
+      const endWeek      = birthdayWeekIndex[y + 1];
+      const weeksThisYear = endWeek - startWeek;
+      const yearWeeksLived = Math.max(0, Math.min(weeksThisYear, state.currentWeek - startWeek));
+      const isCurrent    = state.currentWeek >= startWeek && state.currentWeek < endWeek;
+
+      // Background track — full circle
+      const bg = document.createElementNS('http://www.w3.org/2000/svg','path');
+      bg.setAttribute('d', arcPath(r, 0, 359.99));
+      bg.setAttribute('fill','none');
+      bg.setAttribute('stroke','#1a1d28');
+      bg.setAttribute('stroke-width', ringSize);
+      svg.appendChild(bg);
+
+      if (yearWeeksLived > 0) {
+        if (!isCurrent) {
+          // Fully lived past year — complete gold circle
+          const arc = document.createElementNS('http://www.w3.org/2000/svg','path');
+          arc.setAttribute('d', arcPath(r, 0, 359.99));
+          arc.setAttribute('fill','none');
+          arc.setAttribute('stroke','rgba(200,169,110,0.85)');
+          arc.setAttribute('stroke-width', ringSize);
+          svg.appendChild(arc);
+        } else {
+          // Current year: gold portion + red sliver, both using polar path math
+          const goldDeg = (yearWeeksLived - 1) / weeksThisYear * 360;
+          const redDeg  = 1 / weeksThisYear * 360;
+
+          // Gold arc from 0 to goldDeg
+          if (goldDeg > 0.01) {
+            const goldArc = document.createElementNS('http://www.w3.org/2000/svg','path');
+            goldArc.setAttribute('d', arcPath(r, 0, goldDeg));
+            goldArc.setAttribute('fill','none');
+            goldArc.setAttribute('stroke','rgba(200,169,110,0.85)');
+            goldArc.setAttribute('stroke-width', ringSize);
+            svg.appendChild(goldArc);
+          }
+
+          // Red sliver from goldDeg to goldDeg+redDeg
+          const redArc = document.createElementNS('http://www.w3.org/2000/svg','path');
+          redArc.setAttribute('d', arcPath(r, goldDeg, goldDeg + redDeg));
+          redArc.setAttribute('fill','none');
+          redArc.setAttribute('stroke','#c05050');
+          redArc.setAttribute('stroke-width', ringSize + 1);
+          redArc.setAttribute('stroke-linecap','round');
+          redArc.setAttribute('filter','url(#glow)');
+          svg.appendChild(redArc);
+        }
+      }
+
+      // Event dots — positioned by polar angle
+      Object.keys(evMap).forEach(wiStr => {
+        const wi = parseInt(wiStr);
+        if (wi < startWeek || wi >= endWeek) return;
+        const weekInYear = wi - startWeek;
+        const angleDeg   = (weekInYear / weeksThisYear) * 360;
+        const pos = polar(angleDeg, r);
+        const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        dot.setAttribute('cx', pos.x); dot.setAttribute('cy', pos.y);
+        dot.setAttribute('r', Math.max(3, ringSize * 0.8));
+        dot.setAttribute('fill','#5b8fa8');
+        dot.setAttribute('filter','url(#glow)');
+        const t = document.createElementNS('http://www.w3.org/2000/svg','title');
+        // Pair each event name with its date for the tooltip
+        const tooltipLines = state.events
+          .filter(ev => eventsByWeek()[wiStr] && evMap[wiStr].includes(ev.name))
+          .map(ev => ev.name + ' · ' + ev.date.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}));
+        t.textContent = tooltipLines.join('\n');
+        dot.appendChild(t);
+        svg.appendChild(dot);
+      });
+    }
+
+    // Center background circle
+    const centerBg = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    centerBg.setAttribute('cx',cx); centerBg.setAttribute('cy',cy); centerBg.setAttribute('r','28');
+    centerBg.setAttribute('fill','#0d0e12');
+    svg.appendChild(centerBg);
+
+    const t1 = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t1.setAttribute('x',cx); t1.setAttribute('y',cy+4); t1.setAttribute('text-anchor','middle');
+    t1.setAttribute('font-family','Cormorant Garamond, serif'); t1.setAttribute('font-size','34');
+    t1.setAttribute('font-weight','300'); t1.setAttribute('font-style','italic');
+    t1.setAttribute('fill','#c8a96e');
+    t1.textContent = state.ageYears;
+    svg.appendChild(t1);
+
+    const t2 = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t2.setAttribute('x',cx); t2.setAttribute('y',cy+20); t2.setAttribute('text-anchor','middle');
+    t2.setAttribute('font-family','Cormorant SC, serif'); t2.setAttribute('font-size','11');
+    t2.setAttribute('letter-spacing','4'); t2.setAttribute('fill','rgba(107,106,94,1)');
+    t2.textContent = 'YEARS';
+    svg.appendChild(t2);
+  }
+
+    function resetCalendar() {
+    document.getElementById('calendar-screen').style.display = 'none';
+    document.getElementById('input-screen').style.display = 'flex';
+  }
+
+  renderEventList();
+  document.getElementById('birthdate').addEventListener('keydown', e => { if(e.key==='Enter') buildCalendar(); });
+  document.getElementById('new-event-name').addEventListener('keydown', e => { if(e.key==='Enter') addEvent(); });
+</script>
+</body>
+</html>
